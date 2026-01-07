@@ -6,6 +6,7 @@ import akshare as ak
 import requests
 import numpy as np
 from config import get_yfinance_ticker
+from attribution import detect_abnormal_movements, format_movements_for_llm
 
 
 def _clean_env(v: Optional[str]) -> Optional[str]:
@@ -83,12 +84,29 @@ def get_stock_news_safe(code: str, limit: int = 3) -> List[str]:
 
 def _gather_stock_context(stock: Dict) -> Dict:
     ticker = get_yfinance_ticker(stock["code"])
+    stock_name = stock.get("name", "Unknown")
     meta = {}
     
     # 1. Fetch news from akshare (preferred for A-shares)
-    news_titles = get_stock_news_safe(stock["code"])
+    # 增加获取数量以便筛选 (从 3 增加到 10)
+    raw_news = get_stock_news_safe(stock["code"], limit=10)
+    
+    # 2. LLM 智能筛选新闻 (Top 3)
+    if llm_enabled() and raw_news:
+        news_titles = _filter_news_with_llm(stock_name, raw_news)
+    else:
+        news_titles = raw_news[:3]
 
-    # 2. Fetch other meta info from yfinance
+    # 3. 历史股价异动检测与归因
+    attribution_summary = "无历史归因信息"
+    if llm_enabled():
+        # 检测异动
+        movements = detect_abnormal_movements(stock["code"], days=90)
+        movements_desc = format_movements_for_llm(movements)
+        # 生成归因总结
+        attribution_summary = _summarize_attribution_with_llm(stock_name, movements_desc, raw_news)
+
+    # 4. Fetch other meta info from yfinance
     try:
         t = yf.Ticker(ticker)
         fi = getattr(t, "fast_info", None)
@@ -119,6 +137,7 @@ def _gather_stock_context(stock: Dict) -> Dict:
         "ma_bullish": _to_jsonable(stock.get("ma_bullish")),
         "meta": {k: _to_jsonable(v) for k, v in meta.items()},
         "news": news_titles,
+        "history_attribution": attribution_summary,
     }
 
 
@@ -127,10 +146,13 @@ def _build_prompt(rec_type: str, contexts: List[Dict]) -> str:
     for c in contexts:
         safe_contexts.append({k: _to_jsonable(v) if k != "meta" else {mk: _to_jsonable(mv) for mk, mv in v.items()} for k, v in c.items()})
     return (
-        "你是交易助理。给定同一类型的候选股票，基于量化信号与基础信息，"
-        "选择一只最值得买的股票，并以简洁、可执行的理由说明。必须输出JSON："
+        "你是资深交易助理。给定同一类型的候选股票，请综合以下三个维度进行深度分析，选择一只最值得买入的股票：\n"
+        "1. **量化信号**：分析RSI、MACD、均线形态、量比等技术指标的有效性。\n"
+        "2. **异动归因**：参考'history_attribution'字段，评估该股的历史股性、主力资金意图及上涨逻辑的持续性。\n"
+        "3. **市场情绪**：结合新闻资讯，判断当前是否有明确的宏观或行业利好催化。\n\n"
+        "请给出简洁、逻辑严密且具有可操作性的推荐理由。必须输出JSON格式："
         '{"ticker":"...", "name":"...", "reason":"..."}。'
-        f"类型:{rec_type}。候选:{json.dumps(safe_contexts, ensure_ascii=False)}"
+        f"\n选股策略类型:{rec_type}。\n候选股票池:{json.dumps(safe_contexts, ensure_ascii=False)}"
     )
 
 
@@ -140,6 +162,7 @@ def _call_ark(prompt: str) -> Optional[Dict]:
     base_url = _clean_env(os.environ.get("ARK_BASE_URL")) or "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     if not api_key or not model_id:
         return None
+    
     if os.environ.get("LLM_DEBUG") == "1":
         key_len = len(api_key)
         prefix_ok = api_key.lower().startswith("ak-")
@@ -152,11 +175,11 @@ def _call_ark(prompt: str) -> Optional[Dict]:
     payload = {
         "model": model_id,
         "messages": [
-            {"role": "system", "content": "输出仅限JSON，字段ticker、name、reason。"},
+            {"role": "system", "content": "输出仅限JSON。"},
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.2,
-        "max_tokens": 600,
+        "max_tokens": 800,
         "response_format": {"type": "json_object"},
     }
     
@@ -166,7 +189,7 @@ def _call_ark(prompt: str) -> Optional[Dict]:
         logger.info(f"LLM_FULL_PROMPT: {prompt}")
 
     try:
-        resp = requests.post(base_url, headers=headers, data=json.dumps(payload), timeout=20)
+        resp = requests.post(base_url, headers=headers, data=json.dumps(payload), timeout=30)
         resp.raise_for_status()
         data = resp.json()
         
@@ -207,10 +230,7 @@ def _call_ark(prompt: str) -> Optional[Dict]:
             else:
                 logger.error(f"Failed to parse LLM JSON: {content}")
                 return None
-        if isinstance(parsed, dict) and {"ticker", "name", "reason"} <= set(parsed.keys()):
-            return parsed
-        else:
-             logger.warning(f"LLM JSON missing required keys: {parsed.keys()}")
+        return parsed
              
     except requests.RequestException as e:
         logger.error(f"ARK_HTTP_ERROR: {e}")
@@ -227,6 +247,48 @@ def _call_ark(prompt: str) -> Optional[Dict]:
         logger.error(f"ARK_GENERIC_ERROR: {e}")
         return None
     return None
+
+
+def _filter_news_with_llm(stock_name: str, news_list: List[str]) -> List[str]:
+    """
+    使用 LLM 对新闻进行筛选，选出 Top 3
+    """
+    if not news_list:
+        return []
+        
+    prompt = (
+        f"你是金融助手。请从以下关于【{stock_name}】的新闻中，筛选出对股价影响最大、时效性最强、相关性最高的 3 条新闻。"
+        "请对选出的新闻进行一句话概括。必须输出JSON格式：{\"top_news\": [\"概括1\", \"概括2\", \"概括3\"]}"
+        f"\n新闻列表：\n{json.dumps(news_list, ensure_ascii=False)}"
+    )
+    
+    result = _call_ark(prompt)
+    if result and "top_news" in result and isinstance(result["top_news"], list):
+        return result["top_news"]
+    
+    # 如果调用失败或格式不对，回退到取前3条
+    return news_list[:3]
+
+
+def _summarize_attribution_with_llm(stock_name: str, movements_desc: str, news_list: List[str]) -> str:
+    """
+    使用 LLM 生成历史归因总结
+    """
+    if "无显著股价异动" in movements_desc:
+        return "近期股价波动较小，无显著历史异动。"
+        
+    prompt = (
+        f"你是金融分析师。股票【{stock_name}】{movements_desc}"
+        f"结合以下近期新闻（作为参考）：{json.dumps(news_list[:5], ensure_ascii=False)}。"
+        "请从宏观、行业、个股三个维度，简要分析上述历史异动的原因（如果新闻不足以解释历史，请基于一般性的技术面或行业逻辑进行推测）。"
+        "必须输出JSON格式：{\"summary\": \"归因总结...\"}"
+    )
+    
+    result = _call_ark(prompt)
+    if result and "summary" in result:
+        return result["summary"]
+    
+    return "无法生成归因总结。"
 
 
 def _fallback_pick(rec_type: str, contexts: List[Dict]) -> Optional[Dict]:
