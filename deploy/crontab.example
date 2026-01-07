@@ -1,0 +1,6 @@
+# Stock Daily Analyzer - 每日自动运行
+# 每个交易日收盘后（15:30）运行分析
+30 15 * * 1-5 cd /path/to/stock-daily-analyzer && /usr/bin/python3 main.py >> /var/log/stock-analyzer/cron.log 2>&1
+
+# 备选时间：晚上8点运行（确保收盘数据已更新）
+# 0 20 * * 1-5 cd /path/to/stock-daily-analyzer && /usr/bin/python3 main.py >> /var/log/stock-analyzer/cron.log 2>&1

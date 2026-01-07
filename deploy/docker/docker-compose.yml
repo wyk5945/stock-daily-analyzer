@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  stock-analyzer:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    container_name: stock-analyzer
+    restart: unless-stopped
+    
+    # 环境变量
+    env_file:
+      - ../../.env
+    
+    # 挂载卷
+    volumes:
+      - ../../logs:/app/logs
+      - ../../reports:/app/reports
+      - stock-data:/app/data
+    
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # 网络配置
+    networks:
+      - stock-analyzer-network
+
+volumes:
+  stock-data:
+    driver: local
+
+networks:
+  stock-analyzer-network:
+    driver: bridge

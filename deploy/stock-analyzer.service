@@ -1,0 +1,19 @@
+[Unit]
+Description=Stock Daily Analyzer Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=USER_TO_REPLACE
+WorkingDirectory=/path/to/stock-daily-analyzer
+Environment="PATH=/usr/bin:/usr/local/bin"
+ExecStart=/usr/bin/python3 /path/to/stock-daily-analyzer/main.py
+StandardOutput=append:/var/log/stock-analyzer/output.log
+StandardError=append:/var/log/stock-analyzer/error.log
+
+# 资源限制
+MemoryMax=2G
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target
