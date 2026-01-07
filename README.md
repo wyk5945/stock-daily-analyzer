@@ -58,6 +58,8 @@
 
 ## 使用方法
 
+### 本地运行
+
 运行主程序进行全流程分析：
 
 ```bash
@@ -70,16 +72,59 @@ python main.py
 python test_llm.py
 ```
 
+### 服务器部署
+
+**🚀 一键部署（推荐）**
+
+```bash
+# 上传项目到服务器
+scp -r stock-daily-analyzer user@your-server:/home/user/
+
+# SSH登录并部署
+ssh user@your-server
+cd /home/user/stock-daily-analyzer
+./deploy/deploy.sh
+```
+
+**🐳 Docker部署**
+
+```bash
+cd deploy/docker
+./run.sh
+```
+
+**📚 详细部署文档**
+
+- [快速部署指南](./QUICK_DEPLOY.md) - 3种部署方式快速入门
+- [完整部署文档](./DEPLOYMENT.md) - 详细的部署、配置、监控指南
+
 ## 目录结构
 
-*   `analyzer.py`: 核心量化分析逻辑。
-*   `llm.py`: 大模型交互模块（集成 akshare 新闻获取）。
-*   `backtester.py`: 历史回测模块。
-*   `database.py`: 数据库操作。
-*   `notifier.py`: 系统通知模块。
-*   `config.py`: 系统配置（阈值、板块、API设置等）。
-*   `logs/`: 运行日志。
-*   `reports/`: 每日生成的分析报告。
+```
+stock-daily-analyzer/
+├── analyzer.py              # 核心量化分析逻辑
+├── llm.py                   # 大模型交互模块（集成 akshare 新闻获取）
+├── attribution.py           # 历史异动归因分析
+├── backtester.py           # 历史回测模块
+├── database.py             # 数据库操作
+├── notifier.py             # 系统通知模块
+├── config.py               # 系统配置（阈值、板块、API设置等）
+├── main.py                 # 主程序入口
+├── test_llm.py             # LLM功能测试
+├── test_deployment.sh      # 本地部署测试脚本
+├── requirements.txt        # Python依赖
+├── deploy/                 # 部署配置目录
+│   ├── deploy.sh           # 一键部署脚本
+│   ├── crontab.example     # 定时任务示例
+│   ├── stock-analyzer.service  # systemd服务配置
+│   ├── docker/             # Docker部署配置
+│   │   ├── Dockerfile
+│   │   ├── docker-compose.yml
+│   │   └── run.sh
+│   └── supervisor/         # Supervisor配置
+├── logs/                   # 运行日志
+└── reports/                # 每日生成的分析报告
+```
 
 ## 免责声明
 
