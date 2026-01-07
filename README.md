@@ -1,0 +1,74 @@
+# Stock Daily Analyzer (A股每日分析助手)
+
+这是一个自动化的A股市场分析工具，旨在每日收盘后协助投资者快速筛选潜在机会。它结合了传统量化技术指标（RSI, MACD, 均线系统, 量比）与现代大语言模型（LLM）的语义分析能力，提供智能化的选股建议。
+
+## 主要功能
+
+1.  **全市场扫描**: 每日自动扫描 A 股市场（支持排除创业板/ST股），基于量化规则筛选股票。
+    *   **放量突破**: 寻找成交量显著放大且价格突破的股票。
+    *   **趋势向好**: 筛选均线多头排列、MACD 金叉的稳健标的。
+    *   **超卖反弹**: 捕捉 RSI 超卖且有企稳迹象的反弹机会。
+2.  **LLM 智能精选**: 集成火山方舟（Ark）大模型，对量化筛选出的候选股进行二次分析。
+    *   结合个股实时新闻（通过 akshare 获取）和基本面数据。
+    *   输出每种策略下"最值得买"的一只股票及推荐理由。
+3.  **历史回测**: 每日运行前自动验证 3 天前的推荐结果，统计准确率和收益率。
+4.  **自动化报告**: 生成包含回测结果、今日推荐、LLM 精选理由的日报，并支持保存为文本文件。
+5.  **系统通知**: 分析完成后通过 macOS 系统通知发送摘要（支持点击打开报告）。
+
+## 技术栈
+
+*   **语言**: Python 3.9+
+*   **数据源**: 
+    *   `akshare`: 获取 A 股实时行情、个股新闻。
+    *   `yfinance`: 获取个股基本面数据（市值、PE等）。
+*   **LLM**: 火山引擎 (Volcengine Ark) / 兼容 OpenAI 接口。
+*   **存储**: SQLite (本地存储历史推荐与价格数据)。
+
+## 安装与配置
+
+1.  **克隆仓库**
+    ```bash
+    git clone https://github.com/yourusername/stock-daily-analyzer.git
+    cd stock-daily-analyzer
+    ```
+
+2.  **安装依赖**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **配置环境变量**
+    复制 `.env.example` (需自行创建) 为 `.env` 并填入你的 API Key：
+    ```ini
+    ARK_API_KEY=your_api_key_here
+    ARK_MODEL_ID=your_model_endpoint_id
+    ```
+
+## 使用方法
+
+运行主程序进行全流程分析：
+
+```bash
+python main.py
+```
+
+或者仅测试 LLM 选股功能：
+
+```bash
+python test_llm.py
+```
+
+## 目录结构
+
+*   `analyzer.py`: 核心量化分析逻辑。
+*   `llm.py`: 大模型交互模块（集成 akshare 新闻获取）。
+*   `backtester.py`: 历史回测模块。
+*   `database.py`: 数据库操作。
+*   `notifier.py`: 系统通知模块。
+*   `config.py`: 系统配置（阈值、板块、API设置等）。
+*   `logs/`: 运行日志。
+*   `reports/`: 每日生成的分析报告。
+
+## 免责声明
+
+本项目仅供学习和研究使用，不构成任何投资建议。股市有风险，入市需谨慎。
