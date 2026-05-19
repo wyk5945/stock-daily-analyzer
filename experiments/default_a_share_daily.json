@@ -1,0 +1,49 @@
+{
+  "name": "a_share_daily_demo",
+  "market": "A股",
+  "frequency": "日频",
+  "seed": 42,
+  "universe": {
+    "include_prefix": ["000", "001", "002", "003", "600", "601", "603", "605"],
+    "exclude_prefix": ["300", "301"],
+    "exclude_st": true,
+    "max_stocks": 300
+  },
+  "data": {
+    "provider": "yfinance",
+    "cache_dir": "data/cache_prices",
+    "timeout_seconds": 10
+  },
+  "factors": {
+    "lookback_days": 20,
+    "weights": {
+      "momentum": 1.0,
+      "volatility": -0.5,
+      "rsi": -0.2,
+      "volume_ratio": 0.2
+    }
+  },
+  "portfolio": {
+    "top_k": 10,
+    "max_weight_per_name": 0.15
+  },
+  "risk": {
+    "max_drawdown_halt": 0.2
+  },
+  "trading": {
+    "t_plus_one": true,
+    "limit_up": 0.099,
+    "limit_down": -0.099,
+    "stamp_duty_bps": 10.0,
+    "allow_buy_limit_up": false,
+    "allow_sell_limit_down": false
+  },
+  "backtest": {
+    "start": "2023-01-01",
+    "end": "2025-01-01",
+    "rebalance": "W-FRI",
+    "commission_bps": 1.0,
+    "slippage_bps": 2.0,
+    "initial_cash": 1000000.0
+  }
+}

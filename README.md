@@ -15,6 +15,15 @@
 4.  **自动化报告**: 生成包含回测结果、今日推荐、LLM 精选理由的日报，并支持保存为文本文件。
 5.  **系统通知**: 分析完成后通过 macOS 系统通知发送摘要（支持点击打开报告）。
 
+## 量化框架（qf）
+
+项目内置一个可复现实验的量化研究框架（仅A股、日频数据、周频调仓），支持：
+
+- 数据源接口与本地缓存（便于替换数据源、提升回测速度）
+- 因子计算 → 截面打分 → 组合构建（TopK 等权 + 单票上限）
+- 可交易性约束（停牌、涨跌停、T+1）与税费/滑点/佣金成本
+- 回测结果落盘（equity/holdings/summary），便于复现实验与对比
+
 ## 技术栈
 
 *   **语言**: Python 3.9+
@@ -38,9 +47,23 @@
 
 ## 安装与配置
 
+### 作为 Python 包安装（推荐）
+
+```bash
+pip install -e .
+```
+
+开发与测试环境：
+
+```bash
+pip install -e ".[dev]"
+ruff check .
+pytest -q
+```
+
 1.  **克隆仓库**
     ```bash
-    git clone https://github.com/yourusername/stock-daily-analyzer.git
+    git clone https://github.com/oliverran/stock-daily-analyzer.git
     cd stock-daily-analyzer
     ```
 
@@ -50,7 +73,7 @@
     ```
 
 3.  **配置环境变量**
-    复制 `.env.example` (需自行创建) 为 `.env` 并填入你的 API Key：
+    复制 `.env.example` 为 `.env` 并填入你的 API Key：
     ```ini
     ARK_API_KEY=your_api_key_here
     ARK_MODEL_ID=your_model_endpoint_id
@@ -59,6 +82,17 @@
 ## 使用方法
 
 ### 本地运行
+
+#### Windows（推荐使用虚拟环境）
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+copy .env.example .env
+python self_check.py
+python main.py
+```
 
 运行主程序进行全流程分析：
 
@@ -70,6 +104,42 @@ python main.py
 
 ```bash
 python test_llm.py
+```
+
+### 量化框架回测（仅A股、日频）
+
+使用可复现实验配置运行回测：
+
+```bash
+python run_experiment.py --config experiments/default_a_share_daily.json
+```
+
+或使用安装后的 CLI：
+
+```bash
+stock-analyzer backtest --config experiments/default_a_share_daily.json
+```
+
+回测输出目录（默认）：
+
+- `reports/experiments/<experiment_name>/equity.csv`
+- `reports/experiments/<experiment_name>/holdings.csv`
+- `reports/experiments/<experiment_name>/summary.json`
+
+实验配置说明（见 `experiments/*.json`）：
+
+- `universe`：股票池过滤（可选 include_prefix、exclude_prefix、exclude_st、max_stocks）
+- `data`：数据源与缓存（provider、cache_dir、timeout_seconds）
+- `factors`：lookback 与因子权重（weights）
+- `portfolio`：TopK、单票上限（max_weight_per_name）
+- `trading`：可交易性与税费（t_plus_one、limit_up/limit_down、stamp_duty_bps 等）
+- `backtest`：回测区间、调仓规则（rebalance=W/W-FRI/M）、成本与初始资金
+
+自检与日报运行：
+
+```bash
+stock-analyzer self-check
+stock-analyzer run-daily
 ```
 
 ### 服务器部署
@@ -102,17 +172,20 @@ cd deploy/docker
 
 ```
 stock-daily-analyzer/
-├── analyzer.py              # 核心量化分析逻辑
-├── llm.py                   # 大模型交互模块（集成 akshare 新闻获取）
-├── attribution.py           # 历史异动归因分析
-├── backtester.py           # 历史回测模块
-├── database.py             # 数据库操作
-├── notifier.py             # 系统通知模块
-├── config.py               # 系统配置（阈值、板块、API设置等）
-├── main.py                 # 主程序入口
-├── test_llm.py             # LLM功能测试
-├── test_deployment.sh      # 本地部署测试脚本
-├── requirements.txt        # Python依赖
+├── qf/                      # 可复现实验量化框架（数据/因子/回测/交易约束/CLI）
+├── experiments/             # 实验配置样例（JSON）
+├── tests/                   # 单元测试与冒烟测试（离线可跑）
+├── analyzer.py              # 日报：量化筛选逻辑
+├── llm.py                   # 日报：LLM二次分析（可选）
+├── attribution.py           # 日报：历史异动归因（可选）
+├── backtester.py            # 日报：历史推荐回测统计
+├── database.py              # 日报：SQLite存储
+├── notifier.py              # 通知（macOS可用，其他平台安全降级）
+├── config.py                # 日报配置
+├── main.py                  # 日报入口
+├── run_experiment.py        # 量化框架：回测入口（兼容 CLI）
+├── pyproject.toml           # 打包/依赖/CLI/CI配置
+├── .env.example             # 环境变量示例
 ├── deploy/                 # 部署配置目录
 │   ├── deploy.sh           # 一键部署脚本
 │   ├── crontab.example     # 定时任务示例

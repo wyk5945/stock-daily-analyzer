@@ -1,9 +1,17 @@
 import subprocess
 import os
 import shutil
+import sys
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 def send_notification(title: str, message: str, subtitle: str = "", sound: str = "default", open_url: str = None):
+    if sys.platform != "darwin":
+        logger.info(f"NOTIFICATION {title}: {message}")
+        return False
     tn = shutil.which("terminal-notifier") or "/opt/homebrew/bin/terminal-notifier"
     if tn and os.path.exists(tn):
         args = [tn, "-title", title, "-message", message]
@@ -14,7 +22,7 @@ def send_notification(title: str, message: str, subtitle: str = "", sound: str =
         try:
             subprocess.run(args, check=True, capture_output=True)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return False
     subtitle_part = f'subtitle "{subtitle}"' if subtitle else ""
     script = f'''
@@ -23,7 +31,7 @@ def send_notification(title: str, message: str, subtitle: str = "", sound: str =
     try:
         subprocess.run(["osascript", "-e", script], check=True, capture_output=True)
         return True
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
 

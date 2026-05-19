@@ -22,6 +22,7 @@ from config import (
     MAX_RECOMMENDATIONS_PER_TYPE, MIN_VOLUME_RATIO,
     get_yfinance_ticker, is_valid_stock
 )
+from strategies import default_strategies
 
 
 class StockAnalyzer:
@@ -267,11 +268,10 @@ class StockAnalyzer:
 
     def generate_recommendations(self, stocks: List[Dict]) -> Dict[str, List[Dict]]:
         """生成推荐列表"""
-        return {
-            '超卖反弹': self.screen_oversold_rebound(stocks),
-            '趋势向好': self.screen_trending_up(stocks),
-            '放量突破': self.screen_volume_breakout(stocks),
-        }
+        recommendations: Dict[str, List[Dict]] = {}
+        for strat in default_strategies():
+            recommendations[strat.name] = strat.select(stocks)
+        return recommendations
 
     def format_recommendation(self, stock: Dict, rec_type: str) -> Dict:
         """格式化为数据库存储格式"""
