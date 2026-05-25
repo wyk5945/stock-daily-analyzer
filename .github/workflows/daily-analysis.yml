@@ -1,0 +1,54 @@
+name: 每日选股分析
+on:
+  schedule:
+    - cron: '0 10 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: '强制运行'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 设置 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安装依赖
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 执行全市场选股
+        env:
+          ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
+          ARK_MODEL_ID: ${{ secrets.ARK_MODEL_ID || 'deepseek-chat' }}
+          ARK_BASE_URL: ${{ secrets.ARK_BASE_URL || 'https://api.deepseek.com' }}
+        run: |
+          python main.py
+
+      - name: 打印报告
+        run: |
+          echo "=========================================="
+          echo "📊 今日选股报告"
+          echo "=========================================="
+          if [ -f reports/report_*.txt ]; then
+            cat reports/report_*.txt
+          fi
+
+      - name: 上传报告
+        uses: actions/upload-artifact@v6
+        with:
+          name: stock-picks
+          path: reports/
+          retention-days: 30
