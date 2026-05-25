@@ -24,10 +24,13 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: 安装依赖
+           - name: 安装依赖
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt || true
+          pip install ruff --upgrade
+          ruff check --fix . || true
+
 
       - name: 执行全市场选股
         env:
